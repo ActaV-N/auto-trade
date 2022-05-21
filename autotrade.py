@@ -1,9 +1,12 @@
 import time
 import pyupbit
 import datetime
+import pytz
 import requests
 import math
 import numpy as np
+
+utc = pytz.UTC
 
 access = ""
 secret = ""
@@ -130,7 +133,8 @@ while True:
     try:
         # print('Watching...')
         now = datetime.datetime.now()
-        start_time = get_start_time("KRW-BTC")
+        now = pytz.utc.localize(now)
+        start_time = pytz.utc.localize(get_start_time("KRW-BTC"))
         end_time = start_time + datetime.timedelta(days=1)
         
         if now.day == 1:
