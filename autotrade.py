@@ -1,16 +1,19 @@
 import time
 import pyupbit
 import datetime
-import pytz
+from pytz import timezone
 import requests
 import math
 import numpy as np
+import pandas as pd
+import os
+from dotenv import load_dotenv
 
-utc = pytz.UTC
+load_dotenv()
 
-access = ""
-secret = ""
-myToken = ""
+access = os.getenv('ACCESS')
+secret = os.getenv('SECRET')
+myToken = os.getenv('TOKEN')
 
 def post_message( text, channel='#auto-trading', token=myToken):
     """슬랙 메시지 전송"""
@@ -18,6 +21,12 @@ def post_message( text, channel='#auto-trading', token=myToken):
         headers={"Authorization": "Bearer "+token},
         data={"channel": channel,"text": text}
     )
+
+# 로그인
+upbit = pyupbit.Upbit(access, secret)
+print("autotrade start")
+# 시작 메세지 슬랙 전송
+post_message("autotrade start")
 
 def get_start_time(ticker):
     """시작 시간 조회"""
@@ -120,31 +129,46 @@ def get_macd_condition(ticker):
     
     df['macd'] = df['short_ema'] - df['long_ema']
     df['signal'] = df['macd'].ewm(span=9).mean()
+
+    df['bool'] = df['macd'] - df['signal']
     
-    return df['macd'] > df['signal']
+    return df['bool'].iloc[-1]
 
-normal_ticker = ''
-normal_k = 0.5
+past_best = pd.read_csv('../best_ticker.csv')
 
-macd_ticker = ''
-macd_k = 0.5
+if past_best.count().normal_ticker != 1 :
+    now = datetime.datetime.now(timezone('Asia/Seoul'))
+    (normal_ticker, _, normal_k) = get_best('normal', now)
+    (macd_ticker, _, macd_k) = get_best('macd', now)
+
+else:
+    normal_ticker = past_best.normal_ticker.iloc[0]
+    normal_k = past_best.normal_k.iloc[0]
+    macd_ticker = past_best.macd_ticker.iloc[0]
+    macd_k = past_best.macd_k.iloc[0]
+
+print('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
+post_message('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
+print('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
+post_message('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
 
 while True:
     try:
-        # print('Watching...')
-        now = datetime.datetime.now()
-        now = pytz.utc.localize(now)
-        start_time = pytz.utc.localize(get_start_time("KRW-BTC"))
+        now = datetime.datetime.now(timezone('Asia/Seoul'))
+        start_time = get_start_time("KRW-BTC")
         end_time = start_time + datetime.timedelta(days=1)
         
         if now.day == 1:
             (normal_ticker, _, normal_k) = get_best('normal', now)
             (macd_ticker, _, macd_k) = get_best('macd', now)
-        else:
-            if normal_ticker == '':
-                normal_ticker = 'KRW-BTC'
-            if macd_ticker == '':
-                macd_ticker = 'KRW-BTC'
+            print('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
+            post_message('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
+            print('Current ticker(only Volatility) : %s, k : %.1f' % (macd_ticker, macd_k))
+            post_message('Current ticker(only Volatility) : %s, k : %.1f' % (macd_ticker, macd_k))
+
+            headers = ['normal_ticker', 'normal_k', 'macd_ticker','macd_k']
+            csv_data = pd.DataFrame([[normal_ticker, normal_k, macd_ticker, macd_k]], columns=headers)
+            csv_data.to_csv('../best_ticker.csv', index=False)
 
         if start_time < now < end_time - datetime.timedelta(seconds=10):
             # 변동성 매매만
