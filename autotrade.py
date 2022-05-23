@@ -152,6 +152,9 @@ post_message('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, 
 print('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
 post_message('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
 
+normal_flag = False
+macd_flag = False
+
 while True:
     try:
         now = datetime.datetime.now(timezone('Asia/Seoul'))
@@ -180,6 +183,7 @@ while True:
                 if krw > 10000:
                     buy_result = upbit.buy_market_order(normal_ticker, krw*0.9995)
                     post_message(normal_ticker+' buy : '+str(buy_result))
+                    normal_flag = True
 
             # 변동성 + MACD
             macd_target = get_target_price(macd_ticker, macd_k)
@@ -191,6 +195,7 @@ while True:
                 if krw > 10000:
                     buy_result = upbit.buy_market_order(macd_ticker, krw * 0.9995)
                     post_message(macd_ticker + 'buy : ' + str(buy_result))
+                    macd_flag = True
         else:
             normal_coin = get_balance(normal_ticker.split('-')[1])
             macd_coin = get_balance(macd_ticker.split('-')[1])
@@ -201,10 +206,12 @@ while True:
             if normal_market_condition > 5000:
                 sell_result = upbit.sell_market_order(normal_ticker, normal_coin * 0.9995)
                 post_message(normal_ticker + ' sell : ' + str(sell_result))
+                normal_flag = False
 
             if macd_market_condition > 5000:
                 sell_result = upbit.sell_market_order(macd_ticker, macd_coin * 0.9995)
                 post_message(macd_ticker + ' sell : ' + str(sell_result))
+                macd_flag = False
 
         time.sleep(1)
     except Exception as e:
