@@ -178,7 +178,7 @@ while True:
             normal_target = get_target_price(normal_ticker, normal_k)
             current_normal_price = get_current_price(normal_ticker)
 
-            if normal_target < current_normal_price:
+            if normal_target < current_normal_price and not normal_flag:
                 krw = get_balance('KRW') / 2
                 if krw > 10000:
                     buy_result = upbit.buy_market_order(normal_ticker, krw*0.9995)
@@ -190,7 +190,7 @@ while True:
             macd_condition = get_macd_condition(macd_ticker)
             current_macd_price = get_current_price(macd_ticker)
 
-            if macd_target < current_macd_price and macd_condition:
+            if macd_target < current_macd_price and macd_condition and not macd_flag:
                 krw = get_balance('KRW')
                 if krw > 10000:
                     buy_result = upbit.buy_market_order(macd_ticker, krw * 0.9995)
