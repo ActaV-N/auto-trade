@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import os
 from dotenv import load_dotenv
+import sqlite3
 
 load_dotenv()
 
@@ -27,6 +28,10 @@ upbit = pyupbit.Upbit(access, secret)
 print("autotrade start")
 # 시작 메세지 슬랙 전송
 post_message("autotrade start")
+
+#DB
+conn = sqlite3.connect('../best_ticker_20.db')
+cur = conn.cursor()
 
 def get_start_time(ticker):
     """시작 시간 조회"""
@@ -54,28 +59,19 @@ def get_ror(df, strategy='normal', k=0.5):
     df['range'] = (df['high'] - df['low']) * k
     df['target'] = df['open'] + df['range'].shift(1)
     
-    df['ma5'] = df['close'].rolling(window=5).mean().shift(1)
     df['short_ema'] = df['close'].ewm(span=12).mean()
     df['long_ema'] = df['close'].ewm(span=26).mean()
     
     df['macd'] = df['short_ema'] - df['long_ema']
     df['signal'] = df['macd'].ewm(span=9).mean()
     
-    ma5_bull = df['open'] > df['ma5']
-    ema5_bull = df['open'] > df['long_ema']
     
     macd_bull = df['macd'] > df['signal']
     
     df['bull'] = True
     
-    if strategy=='ma':
-        df['bull'] = ma5_bull
-    elif strategy=='ema':
-        df['bull'] = ema5_bull
-    elif strategy=='macd':
+    if strategy=='macd':
         df['bull'] = macd_bull
-    else:
-        df['bull'] = True
     
     fee = 0.0032
     
@@ -134,24 +130,7 @@ def get_macd_condition(ticker):
     
     return df['bool'].iloc[-1]
 
-past_best = pd.read_csv('../best_ticker.csv')
-
-if past_best.count().normal_ticker != 1 :
-    now = datetime.datetime.now(timezone('Asia/Seoul'))
-    (normal_ticker, _, normal_k) = get_best('normal', now)
-    (macd_ticker, _, macd_k) = get_best('macd', now)
-
-else:
-    normal_ticker = past_best.normal_ticker.iloc[0]
-    normal_k = past_best.normal_k.iloc[0]
-    macd_ticker = past_best.macd_ticker.iloc[0]
-    macd_k = past_best.macd_k.iloc[0]
-
-print('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
-post_message('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
-print('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
-post_message('Current ticker(Volatility + MACD) : %s, k : %.1f' % (macd_ticker, macd_k))
-
+fetch_flag = False
 normal_flag = False
 macd_flag = False
 
@@ -161,17 +140,22 @@ while True:
         start_time = get_start_time("KRW-BTC")
         end_time = start_time + datetime.timedelta(days=1)
         
-        if now.day == 1:
-            (normal_ticker, _, normal_k) = get_best('normal', now)
-            (macd_ticker, _, macd_k) = get_best('macd', now)
+        if not fetch_flag:
+            fetch_flag = True
+            conn = sqlite3.connect('../best_ticker_20.db')
+            cur = conn.cursor()
+
+            rows = cur.execute('SELECT * FROM best_20 order by id DESC')
+            (_, normal_ticker, normal_k, macd_ticker, macd_k, date)= rows.fetchone()
+
+            conn.commit()
+            conn.close()
+
             print('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
             post_message('Current ticker(only Volatility) : %s, k : %.1f' % (normal_ticker, normal_k))
             print('Current ticker(only Volatility) : %s, k : %.1f' % (macd_ticker, macd_k))
             post_message('Current ticker(only Volatility) : %s, k : %.1f' % (macd_ticker, macd_k))
-
-            headers = ['normal_ticker', 'normal_k', 'macd_ticker','macd_k']
-            csv_data = pd.DataFrame([[normal_ticker, normal_k, macd_ticker, macd_k]], columns=headers)
-            csv_data.to_csv('../best_ticker.csv', index=False)
+            
 
         if start_time < now < end_time - datetime.timedelta(seconds=10):
             # 변동성 매매만
@@ -212,6 +196,8 @@ while True:
                 sell_result = upbit.sell_market_order(macd_ticker, macd_coin * 0.9995)
                 post_message(macd_ticker + ' sell : ' + str(sell_result))
                 macd_flag = False
+
+            fetch_flag = False
 
         time.sleep(1)
     except Exception as e:
