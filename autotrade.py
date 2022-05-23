@@ -200,11 +200,11 @@ while True:
 
             if normal_market_condition > 5000:
                 sell_result = upbit.sell_market_order(normal_ticker, normal_coin * 0.9995)
-                post_message(nomral_ticker + ' buy : ' + str(sell_result))
+                post_message(normal_ticker + ' sell : ' + str(sell_result))
 
             if macd_market_condition > 5000:
                 sell_result = upbit.sell_market_order(macd_ticker, macd_coin * 0.9995)
-                post_message(macd_ticker + ' buy : ' + str(sell_result))
+                post_message(macd_ticker + ' sell : ' + str(sell_result))
 
         time.sleep(1)
     except Exception as e:
